@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sudhamsh Nimma | Quantum Lab</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;600;700&family=Inter:wght@200;300;400;600&display=swap');
+
+        :root {
+            --bg-base: #010103;
+            --text-main: #f0f0f5;
+            --text-muted: #62627a;
+            --cyan-glow: #00f3ff;
+            --purple-glow: #bd00ff;
+            --alert-green: #00ff66;
+            --card-bg: rgba(8, 8, 12, 0.65);
+            --border-light: rgba(0, 243, 255, 0.15);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; cursor: none; }
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+            line-height: 1.7;
+        }
+        h1, h2, h3, h4, .mono { font-family: 'Fira Code', monospace; }
+
+        /* --- SYSTEM BOOT SEQUENCE --- */
+        #boot-screen {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #000; z-index: 100000; display: flex; flex-direction: column;
+            justify-content: center; padding: 4rem; color: var(--alert-green);
+            font-family: 'Fira Code', monospace; font-size: 1.1rem;
+            transition: transform 1s cubic-bezier(0.77, 0, 0.175, 1);
+        }
+        #boot-text { white-space: pre-wrap; line-height: 1.5; text-shadow: 0 0 8px var(--alert-green); }
+        .boot-hide { transform: translateY(-100%); }
+
+        /* --- HARDWARE-ACCELERATED CURSOR (NO LAG) --- */
+        .cursor-dot {
+            width: 4px; height: 4px; background: #fff; border-radius: 50%;
+            position: fixed; top: 0; left: 0; pointer-events: none; z-index: 99999;
+            box-shadow: 0 0 10px #fff, 0 0 20px var(--cyan-glow);
+            will-change: transform;
+        }
+        .cursor-ring {
+            width: 35px; height: 35px; border: 1px solid var(--cyan-glow); border-radius: 50%;
+            position: fixed; top: 0; left: 0; pointer-events: none; z-index: 99998;
+            box-shadow: inset 0 0 10px rgba(0,243,255,0.2);
+            transition: width 0.2s, height 0.2s, background 0.2s, border-color 0.2s;
+            will-change: transform;
+        }
+
+        /* --- BACKGROUND LAB ELEMENTS --- */
+        #quantum-canvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -3; pointer-events: none; }
+        
+        .lhc-container {
+            position: fixed; top: 50%; left: 50%; width: 100vw; height: 100vh;
+            transform: translate(-50%, -50%) rotateX(65deg);
+            perspective: 1000px; z-index: -2; pointer-events: none; opacity: 0.2;
+        }
+        .ring { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); border-radius: 50%; border: 1px solid; animation: spin linear infinite; }
+        .ring-1 { width: 40vw; height: 40vw; border-color: rgba(0,243,255,0.4); animation-duration: 15s; border-style: dashed;}
+        .ring-2 { width: 70vw; height: 70vw; border-color: rgba(189,0,255,0.3); animation-duration: 30s; animation-direction: reverse; border-style: dotted;}
+        @keyframes spin { 100% { transform: translate(-50%, -50%) rotate(360deg); } }
+
+        .lab-bg-text {
+            position: fixed; font-family: 'Fira Code', monospace; color: rgba(255,255,255,0.03);
+            font-size: 1.5rem; z-index: -2; pointer-events: none; white-space: pre; font-weight: bold;
+        }
+        .bg-eq-1 { top: 15%; left: 5%; transform: rotate(-15deg); }
+        .bg-eq-2 { bottom: 10%; right: 5%; font-size: 1rem; color: rgba(0,243,255,0.02); }
+
+        /* --- LIVE HUD OVERLAYS --- */
+        .hud {
+            position: fixed; padding: 1.5rem; font-family: 'Fira Code', monospace; font-size: 0.75rem;
+            color: var(--cyan-glow); z-index: 100; pointer-events: none; text-shadow: 0 0 5px var(--cyan-glow);
+            line-height: 1.4; opacity: 0.8;
+        }
+        .hud-tl { top: 0; left: 0; border-left: 2px solid var(--cyan-glow); margin: 1rem; }
+        .hud-tr { top: 0; right: 0; text-align: right; border-right: 2px solid var(--purple-glow); margin: 1rem; color: var(--purple-glow); text-shadow: 0 0 5px var(--purple-glow); }
+        .hud-bl { bottom: 0; left: 0; }
+        .hud-br { bottom: 0; right: 0; text-align: right; }
+        .hud-scanline { position: fixed; top: 0; left: 0; width: 100vw; height: 2px; background: rgba(0,243,255,0.15); box-shadow: 0 0 10px rgba(0,243,255,0.3); z-index: 999; pointer-events: none; animation: scan 6s linear infinite; }
+        @keyframes scan { 0% { top: -10px; } 100% { top: 100vh; } }
+
+        /* --- NAVIGATION --- */
+        nav {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            padding: 1rem 2.5rem; display: flex; gap: 2.5rem;
+            background: rgba(2, 2, 4, 0.9); backdrop-filter: blur(15px);
+            z-index: 101; border: 1px solid var(--border-light); border-radius: 40px;
+        }
+        nav a { color: var(--text-main); text-decoration: none; font-family: 'Fira Code', monospace; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; transition: 0.3s; }
+        nav a:hover { color: var(--cyan-glow); text-shadow: 0 0 8px var(--cyan-glow); }
+
+        /* --- LAYOUT --- */
+        .container { max-width: 1400px; margin: 0 auto; padding: 12rem 4rem 5rem 4rem; position: relative; z-index: 10; }
+        .reveal { opacity: 0; transform: translateY(40px); transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1); }
+        .reveal.active { opacity: 1; transform: translateY(0); }
+
+        /* --- HERO --- */
+        .hero { min-height: 80vh; display: flex; flex-direction: column; justify-content: center; position: relative; }
+        .hero .status { color: var(--alert-green); margin-bottom: 1.5rem; font-size: 0.9rem; text-shadow: 0 0 8px rgba(0,255,102,0.5); }
+        .hero h1 { font-size: clamp(4rem, 8vw, 7rem); line-height: 1; margin-bottom: 1rem; letter-spacing: -3px; font-weight: 700; }
+        .hero h1 .highlight { background: linear-gradient(135deg, #fff, var(--cyan-glow), var(--purple-glow)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .hero p.subtitle { font-size: 1.3rem; color: #a0a0b5; max-width: 700px; margin-bottom: 3rem; border-left: 3px solid var(--cyan-glow); padding-left: 1.5rem; }
+        
+        .btn-group { display: flex; gap: 1.5rem; }
+        .btn {
+            padding: 1rem 2.5rem; background: rgba(0,243,255,0.05); border: 1px solid var(--cyan-glow);
+            color: var(--cyan-glow); font-family: 'Fira Code', monospace; font-size: 0.9rem; font-weight: 600;
+            cursor: none; text-decoration: none; text-transform: uppercase; transition: all 0.2s;
+        }
+        .btn:hover { background: var(--cyan-glow); color: #000; box-shadow: 0 0 20px var(--cyan-glow); }
+
+        /* --- TERMINAL CARDS --- */
+        .section-title { font-size: 2rem; margin-bottom: 3rem; display: flex; align-items: center; gap: 1.5rem; color: #fff; text-transform: uppercase; }
+        .section-title::before { content: '>>'; color: var(--cyan-glow); }
+        .section-title::after { content: ''; flex: 1; height: 1px; background: repeating-linear-gradient(90deg, var(--cyan-glow) 0, var(--cyan-glow) 5px, transparent 5px, transparent 10px); opacity: 0.3; }
+
+        .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 2.5rem; }
+        
+        .card {
+            background: var(--card-bg); border: 1px solid var(--border-light);
+            padding: 3.5rem 3rem 3rem 3rem; position: relative; overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); backdrop-filter: blur(10px);
+        }
+        .card::before { 
+            content: attr(data-node); position: absolute; top: 0; left: 0; width: 100%; padding: 0.4rem 1rem;
+            background: rgba(0, 243, 255, 0.1); font-family: 'Fira Code', monospace; font-size: 0.75rem; color: var(--cyan-glow);
+            border-bottom: 1px solid var(--border-light);
+        }
+        .card:hover { border-color: var(--cyan-glow); box-shadow: 0 0 20px rgba(0,243,255,0.15); }
+        .card h3 { font-size: 1.5rem; margin-bottom: 1rem; color: #fff; }
+        .card .meta { font-family: 'Fira Code', monospace; font-size: 0.85rem; color: var(--alert-green); margin-bottom: 1.5rem; }
+        
+        .tags { display: flex; flex-wrap: wrap; gap: 0.8rem; margin-top: 2.5rem; }
+        .tag { background: rgba(0, 243, 255, 0.05); border: 1px solid rgba(0,243,255,0.2); padding: 0.5rem 1rem; font-size: 0.8rem; font-family: 'Fira Code', monospace; color: var(--cyan-glow); }
+        .tag.purple { background: rgba(189, 0, 255, 0.05); border-color: rgba(189,0,255,0.3); color: var(--purple-glow); }
+
+        /* --- REDESIGNED LIBRARY (SPACIOUS & UNCROWDED) --- */
+        .library-layout { display: flex; flex-direction: column; gap: 3rem; }
+        
+        .vault-panel {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--border-light);
+            padding: 2.5rem;
+            position: relative;
+        }
+        
+        .vault-panel h4 {
+            font-size: 1.2rem; margin-bottom: 2rem; color: #fff;
+            display: inline-block; padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--cyan-glow);
+        }
+        .vault-panel.purple h4 { border-bottom-color: var(--purple-glow); }
+
+        /* Wide Grid inside the panel for books to spread out */
+        .book-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 2rem;
+        }
+        
+        .book-item {
+            display: flex; align-items: center; gap: 1.2rem;
+            font-size: 1.05rem; color: #a0a0b5; transition: 0.2s;
+            background: rgba(0,0,0,0.3); padding: 1rem;
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 4px;
+        }
+        .book-item svg { width: 22px; height: 22px; stroke: var(--cyan-glow); flex-shrink: 0; }
+        .vault-panel.purple .book-item svg { stroke: var(--purple-glow); }
+        .book-item:hover { 
+            color: #fff; transform: translateY(-3px); 
+            border-color: rgba(255,255,255,0.2);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+
+        footer { text-align: center; padding: 4rem 0; font-family: 'Fira Code', monospace; font-size: 0.8rem; color: var(--text-muted); border-top: 1px solid var(--border-light); margin-top: 8rem;}
+    </style>
+</head>
+<body>
+
+    <!-- SYSTEM BOOT OVERLAY -->
+    <div id="boot-screen">
+        <div id="boot-text"></div>
+    </div>
+
+    <!-- ZERO-LATENCY HARDWARE CURSOR -->
+    <div class="cursor-dot" id="cursor-dot"></div>
+    <div class="cursor-ring" id="cursor-ring"></div>
+    
+    <!-- LIVE HUD -->
+    <div class="hud hud-tl">
+        SYS.STATE: <span style="color:#fff">ONLINE</span><br>
+        QPU_TEMP: <span id="qpu-temp">15.002</span> mK<br>
+        COHERENCE: <span id="coherence-time">99.99</span>%
+    </div>
+    <div class="hud hud-tr">
+        LOC: ETTIMADAI_TN<br>
+        LAT: 10.9000° N<br>
+        LON: 76.9000° E<br>
+        TIME_SYNC: <span id="live-time"></span>
+    </div>
+    <div class="hud hud-bl" style="color: var(--text-muted);">
+        [ SURFACE_CODE_LATTICE ]<br>
+        NODES: <span id="node-count">0</span>
+    </div>
+    <div class="hud hud-br" style="color: var(--purple-glow);">
+        ERR_RATE_X: <span id="err-x">1.2e-4</span><br>
+        ERR_RATE_Z: <span id="err-z">0.8e-4</span>
+    </div>
+    <div class="hud-scanline"></div>
+
+    <!-- BACKGROUND LAB ELEMENTS -->
+    <canvas id="quantum-canvas"></canvas>
+    <div class="lhc-container">
+        <div class="ring ring-1"></div>
+        <div class="ring ring-2"></div>
+    </div>
+    <div class="lab-bg-text bg-eq-1">iℏ ∂|ψ⟩/∂t = Ĥ|ψ⟩</div>
+    <div class="lab-bg-text bg-eq-2">──[ H ]──[ • ]──[ M ]</div>
+
+    <!-- NAVIGATION -->
+    <nav>
+        <a href="#about">Identity</a>
+        <a href="#research">Research</a>
+        <a href="#patent">Intellectual_Prop</a>
+        <a href="#skills">Architecture</a>
+        <a href="#library">Data_Vault</a>
+    </nav>
+
+    <!-- CONTENT -->
+    <div class="container">
+        <section class="hero reveal" id="home">
+            <div class="status mono">> TERMINAL ACCESS GRANTED</div>
+            <h1>Sudhamsh <br><span class="highlight">Nimma</span></h1>
+            <p class="subtitle">A weird guy working on the weird questions</p>
+            <div class="btn-group">
+                <a href="#research" class="btn">Access Data</a>
+                <a href="https://linkedin.com/in/sudhamsh-nimma" target="_blank" class="btn" style="background:transparent; border-color:var(--purple-glow); color:var(--purple-glow);">Establish Link</a>
+            </div>
+        </section>
+
+        <section id="about" class="reveal" style="margin-top: 8rem;">
+            <h2 class="section-title">Identity_Matrix</h2>
+            <div class="card" data-node="NODE_01: BIO_DATA">
+                <p style="margin-bottom: 1.5rem; font-size: 1.1rem;">I'm Sudhamsh Nimma, a Student Researcher at Amrita Vishwa Vidyapeetham, working at the intersection of <strong>quantum computing, machine learning, signal processing, human-computer interaction, and computer systems</strong>.</p>
+                <p style="color: var(--text-muted); border-left: 2px solid var(--alert-green); padding-left: 1.5rem; font-style: italic; font-size: 1.1rem; background: rgba(0,255,102,0.05); padding-top: 1rem; padding-bottom: 1rem;">"Building things that probably didn't need to be built."</p>
+            </div>
+        </section>
+
+        <section id="research" class="reveal" style="margin-top: 12rem;">
+            <h2 class="section-title">Active_Research_Protocols</h2>
+            <div class="card-grid">
+                <div class="card" data-node="NODE_02A: QEC_SURFACE_CODES">
+                    <h3>Neural Representations for Quantum Surface-Code Syndromes</h3>
+                    <div class="meta">[ DOMAIN: QUANTUM ERROR CORRECTION ]</div>
+                    <p style="color: #a0a0b5; font-size: 1.05rem;">Investigating the compression of high-dimensional quantum error-correction data. Focusing on what structural topological information is preserved or destroyed when mapped into learned graph-neural representations.</p>
+                    <div class="tags">
+                        <span class="tag">Quantum Error Correction</span>
+                        <span class="tag">Surface Codes</span>
+                        <span class="tag">Graph Neural Networks</span>
+                    </div>
+                </div>
+                <div class="card" data-node="NODE_02B: RADAR_ML_SYS" style="border-top: 2px solid var(--purple-glow);">
+                    <h3>Signal Classification in Pareto Noise</h3>
+                    <div class="meta" style="color: var(--purple-glow);">[ DOMAIN: RADAR SYSTEMS ]</div>
+                    <p style="color: #a0a0b5; font-size: 1.05rem;">Robust signal classification architectures under heavy-tailed and non-Gaussian Pareto noise. Developing machine-learning paradigms to improve accuracy and resilience in highly cluttered radar environments.</p>
+                    <div class="tags">
+                        <span class="tag purple">Radar Systems</span>
+                        <span class="tag purple">Deep Learning</span>
+                        <span class="tag purple">Signal Processing</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="patent" class="reveal" style="margin-top: 12rem;">
+            <h2 class="section-title">Intellectual_Property</h2>
+            <div class="card" data-node="NODE_03: PATENT_IN202641079151">
+                <h3 style="color: var(--alert-green);">Proactive Orchestration of Application Processes in Computing Environments</h3>
+                <div class="meta" style="color: #fff;">IN202641079151 A1 | Filed: 26-06-2026 | Applicant: Amrita Vishwa Vidyapeetham</div>
+                <p style="color: #a0a0b5; font-size: 1.1rem; line-height: 1.8;">A novel method and system utilizing an Nth-order Markov-chain-based model to predict and proactively pre-initialize applications based on user intent and interaction patterns. Employs local state maintenance, temporal filtering, and rigorous protection mechanisms.</p>
+            </div>
+        </section>
+
+        <section id="skills" class="reveal" style="margin-top: 12rem;">
+            <h2 class="section-title">System_Architecture</h2>
+            <div class="card-grid">
+                <div class="card" data-node="NODE_04A: SKILLS">
+                    <h3 style="color: var(--cyan-glow);">Computational Languages</h3>
+                    <div class="tags" style="margin-top: 1rem; margin-bottom: 2rem;">
+                        <span class="tag">Python</span><span class="tag">C</span><span class="tag">Swift</span><span class="tag">LaTeX</span>
+                    </div>
+                    <h3 style="color: var(--purple-glow);">Specialized Domains</h3>
+                    <div class="tags" style="margin-top: 1rem;">
+                        <span class="tag purple">Quantum Computing</span><span class="tag purple">Deep Learning</span>
+                        <span class="tag purple">Systems Architecture</span><span class="tag purple">HCI</span>
+                    </div>
+                </div>
+                <div class="card" data-node="NODE_04B: ACADEMIA">
+                    <h3 style="color: #fff;">Academic Profile</h3>
+                    <div class="meta" style="margin-top: 0.5rem;">Amrita Vishwa Vidyapeetham (B.Tech CCE, 2028)</div>
+                    <h3 style="color: #fff; margin-top: 2rem;">Core Interests</h3>
+                    <div class="tags" style="margin-top: 1rem;">
+                        <span class="tag" style="border-color: var(--alert-green); color: var(--alert-green);">Quantum Mechanics</span>
+                        <span class="tag">Surface Codes</span>
+                        <span class="tag">Weird Research Problems</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <section id="library" class="reveal" style="margin-top: 12rem;">
+            <h2 class="section-title">Data_Vault // Literature</h2>
+            <p style="color: #a0a0b5; font-size: 1.1rem; margin-bottom: 3rem;">A curated repository of scientific philosophy, classic literature, and explorations of the human condition. Decompressed for wide-format viewing.</p>
+            
+            <div class="library-layout">
+                
+                <div class="vault-panel">
+                    <h4>[ Sci-Fi & Dystopia ]</h4>
+                    <div class="book-grid">
+                        <div class="book-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path></svg> 1984</div>
+                        <div class="book-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path></svg> Project Hail Mary</div>
+                        <div class="book-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path></svg> Dr. Jekyll & Mr. Hyde</div>
+                    </div>
+                </div>
+
+                <div class="vault-panel purple">
+                    <h4>[ Science & Knowledge ]</h4>
+                    <div class="book-grid">
+                        <div class="book-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path></svg> A Brief History of Time</div>
+                        <div class="book-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path></svg> Ignited Minds</div>
+                        <div class="book-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path></svg> Think and Grow Rich</div>
+                    </div>
+                </div>
+
+                <div class="vault-panel">
+                    <h4>[ Spirit & Philosophy ]</h4>
+                    <div class="book-grid">
+                        <div class="book-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path></svg> Autobiography of a Yogi</div>
+                        <div class="book-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path></svg> Apprenticed to a Master</div>
+                        <div class="book-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path></svg> Death: An Inside Story</div>
+                        <div class="book-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path></svg> Shunya</div>
+                    </div>
+                </div>
+
+                <div class="vault-panel purple">
+                    <h4>[ Classic & Thriller ]</h4>
+                    <div class="book-grid">
+                        <div class="book-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path></svg> Pride and Prejudice</div>
+                        <div class="book-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path></svg> The Picture of Dorian Gray</div>
+                        <div class="book-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path></svg> The Adventures of Tom Sawyer</div>
+                        <div class="book-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path></svg> Great Expectations</div>
+                        <div class="book-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path></svg> It & The Shining</div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <footer>
+            <p>SYSTEM STATE: NOMINAL | CONNECTION SECURE | &lt;EOF_SUDHAMSH_NIMMA&gt;</p>
+        </footer>
+    </div>
+
+    <!-- SCRIPTS -->
+    <script>
+        /* 1. BOOT SEQUENCE */
+        const bootScreen = document.getElementById('boot-screen');
+        const bootText = document.getElementById('boot-text');
+        const bootLines = [
+            "INITIATING SECURE CONNECTION...",
+            "ESTABLISHING LINK TO ETTIMADAI NODE...",
+            "CALIBRATING QUBIT STATES...",
+            "DECOMPRESSING SURFACE CODES...",
+            "ACCESS GRANTED: SUDHAMSH NIMMA WELCOMES YA!."
+        ];
+        
+        let lineIdx = 0;
+        function runBoot() {
+            if (lineIdx < bootLines.length) {
+                bootText.innerHTML += bootLines[lineIdx] + "<br>";
+                lineIdx++;
+                setTimeout(runBoot, 300);
+            } else {
+                setTimeout(() => {
+                    bootScreen.classList.add('boot-hide');
+                }, 800);
+            }
+        }
+        window.addEventListener('load', () => { setTimeout(runBoot, 200); });
+
+        /* 2. ZERO-LATENCY HARDWARE CURSOR (NO LAG) */
+        const dot = document.getElementById("cursor-dot");
+        const ring = document.getElementById("cursor-ring");
+        
+        window.addEventListener("mousemove", (e) => {
+            // translate3d uses the GPU natively - perfectly instant
+            dot.style.transform = `translate3d(calc(${e.clientX}px - 50%), calc(${e.clientY}px - 50%), 0)`;
+            ring.style.transform = `translate3d(calc(${e.clientX}px - 50%), calc(${e.clientY}px - 50%), 0)`;
+        });
+
+        document.querySelectorAll('a, .btn, .book-item').forEach(el => {
+            el.addEventListener('mouseenter', () => {
+                ring.style.width = '60px'; ring.style.height = '60px';
+                ring.style.borderColor = 'var(--purple-glow)';
+                ring.style.background = 'rgba(189,0,255,0.1)';
+            });
+            el.addEventListener('mouseleave', () => {
+                ring.style.width = '35px'; ring.style.height = '35px';
+                ring.style.borderColor = 'var(--cyan-glow)';
+                ring.style.background = 'transparent';
+            });
+        });
+
+        /* 3. LIVE HUD UPDATES */
+        setInterval(() => {
+            document.getElementById('qpu-temp').innerText = (15.000 + Math.random() * 0.010).toFixed(3);
+            document.getElementById('coherence-time').innerText = (99.98 + Math.random() * 0.01).toFixed(2);
+            document.getElementById('err-x').innerText = (1.2 + Math.random() * 0.3).toFixed(2) + 'e-4';
+            document.getElementById('err-z').innerText = (0.8 + Math.random() * 0.2).toFixed(2) + 'e-4';
+            const now = new Date();
+            document.getElementById('live-time').innerText = now.toISOString().split('T')[1].slice(0,-1);
+        }, 500);
+
+        /* 4. SCROLL REVEAL */
+        const observer = new IntersectionObserver(entries => {
+            entries.forEach(entry => { if(entry.isIntersecting) entry.target.classList.add('active'); });
+        }, { threshold: 0.1 });
+        document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+        /* 5. LIGHTWEIGHT QUANTUM CANVAS */
+        const canvas = document.getElementById('quantum-canvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+        let nodes = [];
+        const spacing = 65; // Optimized spacing
+        
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            initNodes();
+        }
+        
+        function initNodes() {
+            nodes = [];
+            for(let x = 0; x < width + spacing; x += spacing) {
+                for(let y = 0; y < height + spacing; y += spacing) {
+                    nodes.push({
+                        x: x, y: y, originX: x, originY: y,
+                        type: ((x/spacing + y/spacing) % 2 === 0) ? '#00f3ff' : '#bd00ff'
+                    });
+                }
+            }
+            document.getElementById('node-count').innerText = nodes.length;
+        }
+
+        let mx = -1000, my = -1000;
+        window.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+
+        function animateCanvas() {
+            ctx.clearRect(0, 0, width, height);
+            ctx.lineWidth = 0.5;
+            
+            for(let i=0; i<nodes.length; i++) {
+                let node = nodes[i];
+                let dx = mx - node.x;
+                let dy = my - node.y;
+                let dist = Math.sqrt(dx*dx + dy*dy);
+
+                if (dist < 150) {
+                    node.x -= dx * 0.02;
+                    node.y -= dy * 0.02;
+                    
+                    for(let j=i+1; j<nodes.length; j++) {
+                        let dx2 = node.x - nodes[j].x;
+                        let dy2 = node.y - nodes[j].y;
+                        if(dx2*dx2 + dy2*dy2 < 6000) {
+                            ctx.beginPath();
+                            ctx.moveTo(node.x, node.y);
+                            ctx.lineTo(nodes[j].x, nodes[j].y);
+                            ctx.strokeStyle = `rgba(0, 243, 255, ${0.1 - dist/1500})`;
+                            ctx.stroke();
+                        }
+                    }
+                } else {
+                    node.x += (node.originX - node.x) * 0.05;
+                    node.y += (node.originY - node.y) * 0.05;
+                }
+
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, 1.5, 0, Math.PI * 2);
+                ctx.fillStyle = dist < 150 ? node.type : 'rgba(255,255,255,0.05)';
+                ctx.fill();
+            }
+            requestAnimationFrame(animateCanvas);
+        }
+        window.addEventListener('resize', resize);
+        resize();
+        animateCanvas();
+
+    </script>
+</body>
+</html>
